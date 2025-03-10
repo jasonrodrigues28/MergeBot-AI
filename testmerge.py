@@ -6,6 +6,9 @@ from reportlab.pdfgen import canvas
 from transformers import pipeline
 import os
 
+# Load summarization model
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
 def extract_text_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
     text = ""
@@ -17,11 +20,6 @@ def chunk_text(text, chunk_size=1000):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
 def summarize_text(text, max_length=200):
-    # Load model inside function to prevent blocking GUI
-    print("Loading summarization model...")  # Debugging
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    print("Summarization model loaded!")  # Debugging
-
     chunks = chunk_text(text)
     summaries = [summarizer(chunk, max_length=max_length, min_length=50, do_sample=False)[0]["summary_text"] for chunk in chunks]
     return " ".join(summaries)
@@ -49,26 +47,23 @@ def merge_pdfs():
     try:
         # Extract and summarize text
         full_text = " ".join([extract_text_from_pdf(pdf) for pdf in pdf_files])
+        summary = summarize_text(full_text)
         
-        root.after(100, lambda: process_summary(full_text, pdf_files, save_path))
+        # Create summary PDF
+        summary_pdf_path = "summary.pdf"
+        create_summary_pdf(summary, summary_pdf_path)
         
+        # Merge summary and selected PDFs
+        merged_pdf = fitz.open()
+        merged_pdf.insert_pdf(fitz.open(summary_pdf_path))
+        for pdf in pdf_files:
+            merged_pdf.insert_pdf(fitz.open(pdf))
+        merged_pdf.save(save_path)
+        
+        messagebox.showinfo("Success", f"Merged PDF saved at:\n{save_path}")
+        os.remove(summary_pdf_path)  # Remove temporary summary PDF
     except Exception as e:
         messagebox.showerror("Error", f"Failed to merge PDFs: {e}")
-
-def process_summary(full_text, pdf_files, save_path):
-    summary = summarize_text(full_text)  # Summarization process
-    summary_pdf_path = "summary.pdf"
-    create_summary_pdf(summary, summary_pdf_path)
-    
-    # Merge summary and selected PDFs
-    merged_pdf = fitz.open()
-    merged_pdf.insert_pdf(fitz.open(summary_pdf_path))
-    for pdf in pdf_files:
-        merged_pdf.insert_pdf(fitz.open(pdf))
-    merged_pdf.save(save_path)
-    
-    messagebox.showinfo("Success", f"Merged PDF saved at:\n{save_path}")
-    os.remove(summary_pdf_path)  # Remove temporary summary PDF
 
 def select_pdfs():
     files = filedialog.askopenfilenames(filetypes=[("PDF Files", "*.pdf")])
