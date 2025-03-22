@@ -1,5 +1,6 @@
 import fitz  
 from transformers import pipeline
+from tqdm import tqdm
 
 def extract_text_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
@@ -28,8 +29,11 @@ if current_chunk:
     chunks.append(current_chunk)
 
 #summerizing
+hello = ""
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
-for chunk in chunks:
+for chunk in tqdm(chunks, desc="Summarizing: "):
     summary = summarizer(chunk, max_length=150, min_length=50, do_sample=False)
-    print(summary)
+    hello = summary
+
+print(hello)
